@@ -48,7 +48,8 @@ class _DistributionChartWidgetState extends State<DistributionChartWidget> {
     final colorScheme = Theme.of(context).colorScheme;
     final canToggleScale =
         widget.result.testValue == null &&
-        widget.result.distType != DistributionType.chiSquare;
+        widget.result.distType != DistributionType.chiSquare &&
+        !widget.result.isSampleSizeMode;
 
     final (distTitle, distFormula) = _getDistributionHeader();
 

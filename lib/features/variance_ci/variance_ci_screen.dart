@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/math/chi_square_dist.dart';
 import '../../core/models/ci_result.dart';
 import '../chart_visualizer/distribution_chart_widget.dart';
+import '../chart_visualizer/step_by_step_card.dart';
 import '../navigation/app_shell.dart';
 
 class VarianceCiScreen extends StatefulWidget {
@@ -14,10 +15,10 @@ class VarianceCiScreen extends StatefulWidget {
 
 class _VarianceCiScreenState extends State<VarianceCiScreen> {
   bool _isRawData = false;
-  bool _isVarianceInput = false; // هل المدخل s^2 أم s؟
+  bool _isVarianceInput = false;
+  bool _useLectureApprox = false; // تقريب المحاضرة الثانية عند df > 30
   double _confidenceLevel = 0.95;
 
-  // مثال صفحة 12 من محاضرة 5 (n=30, s=2.4)
   final _nCtrl = TextEditingController(text: '30');
   final _sCtrl = TextEditingController(text: '2.4');
   final _rawCtrl = TextEditingController(
@@ -41,11 +42,30 @@ class _VarianceCiScreenState extends State<VarianceCiScreen> {
     super.dispose();
   }
 
+  void _applyPreset(String key) {
+    setState(() {
+      if (key == 'lec5_p10') {
+        _isRawData = true;
+        _confidenceLevel = 0.95;
+        _rawCtrl.text =
+            '46.4, 46.1, 45.8, 47, 46.1, 45.9, 45.8, 46.9, 45.2, 46';
+      } else if (key == 'lec5_p12') {
+        _isRawData = false;
+        _isVarianceInput = false;
+        _confidenceLevel = 0.95;
+        _nCtrl.text = '30';
+        _sCtrl.text = '2.4';
+      }
+    });
+    _calculate();
+  }
+
   void _calculate() {
     setState(() => _errorMessage = null);
     try {
       int n;
       double s2;
+      final List<String> steps = [];
 
       if (_isRawData) {
         final values = _rawCtrl.text
@@ -58,32 +78,62 @@ class _VarianceCiScreenState extends State<VarianceCiScreen> {
         final mean = values.reduce((a, b) => a + b) / n;
         s2 =
             values.fold(0.0, (sum, x) => sum + math.pow(x - mean, 2)) / (n - 1);
+        steps.add(
+          'From $n raw values: X̄ = ${mean.toStringAsFixed(4)}, Sample Variance s² = ${s2.toStringAsFixed(5)}',
+        );
       } else {
         n = int.parse(_nCtrl.text.trim());
         final val = double.parse(_sCtrl.text.trim());
         if (n < 2 || val <= 0) throw Exception('تأكد أن n ≥ 2 والقيمة > 0.');
         s2 = _isVarianceInput ? val : val * val;
+        steps.add(
+          'Given: n = $n ⇒ df = n - 1 = ${n - 1}, s² = ${s2.toStringAsFixed(5)}',
+        );
       }
 
       final df = n - 1;
       final alpha = 1.0 - _confidenceLevel;
       final alphaOverTwo = alpha / 2.0;
 
-      // القيم الحرجة من جدول Chi-Square (اليمين واليسار)
-      final chiRight = ChiSquareDist.criticalChiSquare(alphaOverTwo, df);
-      final chiLeft = ChiSquareDist.criticalChiSquare(1.0 - alphaOverTwo, df);
+      final chiRight = ChiSquareDist.criticalChiSquare(
+        alphaOverTwo,
+        df,
+        useLectureNormalApprox: _useLectureApprox,
+      );
+      final chiLeft = ChiSquareDist.criticalChiSquare(
+        1.0 - alphaOverTwo,
+        df,
+        useLectureNormalApprox: _useLectureApprox,
+      );
 
       final double lclVar = (df * s2) / chiRight;
       final double uclVar = (df * s2) / chiLeft;
-
       final double lclStd = math.sqrt(lclVar);
       final double uclStd = math.sqrt(uclVar);
+
+      steps.add(
+        'α = ${alpha.toStringAsFixed(3)} ⇒ α/2 = ${alphaOverTwo.toStringAsFixed(4)} and 1 - α/2 = ${(1 - alphaOverTwo).toStringAsFixed(4)}',
+      );
+      steps.add(
+        'Critical Values (df = $df): χ²_(${alphaOverTwo.toStringAsFixed(4)}, $df) = ${chiRight.toStringAsFixed(3)},  χ²_(${(1 - alphaOverTwo).toStringAsFixed(4)}, $df) = ${chiLeft.toStringAsFixed(3)}',
+      );
+      steps.add(
+        'Law: [ (n - 1)s² / χ²_(α/2, df) ] < σ² < [ (n - 1)s² / χ²_(1 - α/2, df) ]',
+      );
+      steps.add(
+        'Substitution: [ ($df × ${s2.toStringAsFixed(4)}) / ${chiRight.toStringAsFixed(3)} ] < σ² < [ ($df × ${s2.toStringAsFixed(4)}) / ${chiLeft.toStringAsFixed(3)} ]',
+      );
+      steps.add(
+        'Variance CI: ${lclVar.toStringAsFixed(4)} < σ² < ${uclVar.toStringAsFixed(4)}  ⇒  Std Dev CI: ${lclStd.toStringAsFixed(4)} < σ < ${uclStd.toStringAsFixed(4)}',
+      );
 
       setState(() {
         _result = CiResult(
           title:
               '${(_confidenceLevel * 100).toStringAsFixed(0)}% CI for Variance (σ²) & Std Dev (σ)',
-          methodUsed: 'Chi-Square Distribution — χ²(df = $df)',
+          methodUsed: _useLectureApprox && df > 30
+              ? 'Chi-Square Normal Approx (df = $df > 30)'
+              : 'Chi-Square Distribution — χ²(df = $df)',
           distType: DistributionType.chiSquare,
           degreesOfFreedom: df,
           alpha: alpha,
@@ -95,6 +145,7 @@ class _VarianceCiScreenState extends State<VarianceCiScreen> {
           secondaryLabel: 'Std Dev CI (σ)',
           secondaryValue:
               '${lclStd.toStringAsFixed(4)} < σ < ${uclStd.toStringAsFixed(4)}',
+          steps: steps,
         );
       });
     } catch (e) {
@@ -113,13 +164,35 @@ class _VarianceCiScreenState extends State<VarianceCiScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Variance (σ²) & Std Dev (σ)',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Variance (σ²) & Std Dev (σ)',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Lecture 5 Examples',
+                    icon: const Icon(Icons.auto_stories_outlined),
+                    onSelected: _applyPreset,
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'lec5_p10',
+                        child: Text('Lec 5 (p.10): 10 Seed Packages'),
+                      ),
+                      PopupMenuItem(
+                        value: 'lec5_p12',
+                        child: Text('Lec 5 (p.12): 30 Men Heights'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Enter Raw Sample Values'),
@@ -167,7 +240,17 @@ class _VarianceCiScreenState extends State<VarianceCiScreen> {
                   },
                 ),
               ],
-              const SizedBox(height: 12),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Use Lec 2 Normal Approx when df > 30'),
+                subtitle: const Text('χ² ≈ 0.5 · (Z + √(2v - 1))²'),
+                value: _useLectureApprox,
+                onChanged: (v) {
+                  setState(() => _useLectureApprox = v ?? false);
+                  _calculate();
+                },
+              ),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 children: [0.90, 0.95, 0.98, 0.99].map((level) {
@@ -260,7 +343,9 @@ class _VarianceCiScreenState extends State<VarianceCiScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        StepByStepCard(steps: res.steps),
+        const SizedBox(height: 12),
         DistributionChartWidget(result: res),
       ],
     );
