@@ -16,10 +16,16 @@ class DistributionChartWidget extends StatefulWidget {
 class _DistributionChartWidgetState extends State<DistributionChartWidget> {
   bool _showActualScale = true;
 
+  bool get _isPositiveOnly =>
+      widget.result.distType == DistributionType.chiSquare ||
+      widget.result.distType == DistributionType.fisherF;
+
   (String, String) _getDistributionHeader() {
     switch (widget.result.distType) {
       case DistributionType.normal:
-        return _showActualScale && widget.result.testValue == null
+        return _showActualScale &&
+                widget.result.testValue == null &&
+                !widget.result.isSampleSizeMode
             ? (
                 'Sampling Distribution',
                 'N(${widget.result.pointEstimate.toStringAsFixed(2)}, SE²)',
@@ -40,6 +46,11 @@ class _DistributionChartWidgetState extends State<DistributionChartWidget> {
           'Chi-Square Distribution',
           'χ²(df = ${widget.result.degreesOfFreedom})',
         );
+      case DistributionType.fisherF:
+        return (
+          'Fisher\'s F-Distribution',
+          'F(d₁ = ${widget.result.degreesOfFreedom}, d₂ = ${widget.result.degreesOfFreedom2})',
+        );
     }
   }
 
@@ -48,10 +59,18 @@ class _DistributionChartWidgetState extends State<DistributionChartWidget> {
     final colorScheme = Theme.of(context).colorScheme;
     final canToggleScale =
         widget.result.testValue == null &&
-        widget.result.distType != DistributionType.chiSquare &&
-        !widget.result.isSampleSizeMode;
+        !widget.result.isSampleSizeMode &&
+        !_isPositiveOnly;
 
     final (distTitle, distFormula) = _getDistributionHeader();
+
+    final acceptLabel = widget.result.isProbabilityMode
+        ? 'Target Probability (${((1 - widget.result.alpha) * 100).toStringAsFixed(2)}%)'
+        : 'Confidence / Accept (${((1 - widget.result.alpha) * 100).toStringAsFixed(1)}%)';
+
+    final rejectLabel = widget.result.isProbabilityMode
+        ? 'Complement Area (${(widget.result.alpha * 100).toStringAsFixed(2)}%)'
+        : 'Critical Region (α = ${widget.result.alpha.toStringAsFixed(3)})';
 
     return Card(
       child: Padding(
@@ -101,13 +120,11 @@ class _DistributionChartWidgetState extends State<DistributionChartWidget> {
               children: [
                 _LegendItem(
                   color: AppTheme.acceptRegionColor,
-                  label:
-                      'Confidence / Accept (${((1 - widget.result.alpha) * 100).toStringAsFixed(1)}%)',
+                  label: acceptLabel,
                 ),
                 _LegendItem(
                   color: AppTheme.rejectTailColor,
-                  label:
-                      'Critical Region (α = ${widget.result.alpha.toStringAsFixed(3)})',
+                  label: rejectLabel,
                 ),
               ],
             ),

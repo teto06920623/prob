@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/math/chi_square_dist.dart';
+import '../../core/math/fisher_f_dist.dart';
 import '../../core/math/normal_dist.dart';
 import '../../core/math/student_t_dist.dart';
 import '../../core/models/ci_result.dart';
@@ -8,8 +9,7 @@ import '../../core/theme/app_theme.dart';
 
 class DistributionPainter extends CustomPainter {
   final CiResult result;
-  final bool
-  showActualScale; // true = يعرض (LCL, PointEstimate, UCL) | false = يعرض (-Z/T, 0, Z/T)
+  final bool showActualScale;
   final Color axisColor;
   final Color curveColor;
   final Color textColor;
@@ -22,6 +22,10 @@ class DistributionPainter extends CustomPainter {
     required this.textColor,
   });
 
+  bool get _isPositiveOnly =>
+      result.distType == DistributionType.chiSquare ||
+      result.distType == DistributionType.fisherF;
+
   double _pdf(double x) {
     switch (result.distType) {
       case DistributionType.normal:
@@ -30,6 +34,12 @@ class DistributionPainter extends CustomPainter {
         return StudentTDist.pdf(x, result.degreesOfFreedom);
       case DistributionType.chiSquare:
         return ChiSquareDist.pdf(x, result.degreesOfFreedom);
+      case DistributionType.fisherF:
+        return FisherFDist.pdf(
+          x,
+          result.degreesOfFreedom,
+          result.degreesOfFreedom2,
+        );
     }
   }
 
@@ -44,7 +54,6 @@ class DistributionPainter extends CustomPainter {
     final double plotHeight = size.height - topPad - bottomPad;
     if (plotWidth <= 0 || plotHeight <= 0) return;
 
-    // 1. تحديد حدود المحور السيني حسب نوع التوزيع
     double minX;
     double maxX;
 
@@ -56,6 +65,15 @@ class DistributionPainter extends CustomPainter {
           ? result.rightCritical * 1.25
           : 10.0;
       maxX = math.max(10.0, math.max(stdRange, critRange));
+    } else if (result.distType == DistributionType.fisherF) {
+      minX = 0.0;
+      final critRange = result.rightCritical.isFinite
+          ? result.rightCritical * 1.35
+          : 5.0;
+      final testRange = (result.testValue != null && result.testValue!.isFinite)
+          ? result.testValue! * 1.35
+          : 5.0;
+      maxX = math.max(5.0, math.max(critRange, testRange));
     } else {
       double extreme = 3.8;
       if (result.leftCritical.isFinite) {
@@ -74,12 +92,12 @@ class DistributionPainter extends CustomPainter {
       maxX = extreme;
     }
 
-    // 2. إيجاد أعلى نقطة (maxY) لضبط مقياس الرسم الرأسي
     const int samples = 240;
     double maxY = 0.0;
-    final double startX = result.distType == DistributionType.chiSquare
+    final double startX = _isPositiveOnly
         ? (result.degreesOfFreedom <= 2 ? 0.08 : 0.0)
         : minX;
+
     for (int i = 0; i <= samples; i++) {
       final x = startX + (maxX - startX) * (i / samples);
       final y = _pdf(x);
@@ -93,7 +111,6 @@ class DistributionPainter extends CustomPainter {
         topPad + plotHeight - ((y / maxY).clamp(0.0, 1.15)) * plotHeight;
     final double baselineY = topPad + plotHeight;
 
-    // دالة مساعدة لتظليل مساحة تحت المنحنى بين a و b
     void fillRegion(double a, double b, Color color) {
       final clampedA = a.clamp(startX, maxX);
       final clampedB = b.clamp(startX, maxX);
@@ -109,10 +126,12 @@ class DistributionPainter extends CustomPainter {
         ..lineTo(toPixelX(clampedB), baselineY)
         ..close();
 
-      final paint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = color.withAlpha(75);
-      canvas.drawPath(path, paint);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = color.withAlpha(75),
+      );
     }
 
     final double leftBound = result.leftCritical.isFinite
@@ -122,7 +141,6 @@ class DistributionPainter extends CustomPainter {
         ? result.rightCritical
         : maxX;
 
-    // 3. تظليل الذيل الأيسر، منطقة الثقة/القبول الوسطى، والذيل الأيمن
     if (result.leftCritical.isFinite) {
       fillRegion(startX, leftBound, AppTheme.rejectTailColor);
     }
@@ -131,7 +149,6 @@ class DistributionPainter extends CustomPainter {
       fillRegion(rightBound, maxX, AppTheme.rejectTailColor);
     }
 
-    // 4. رسم خط المنحنى الرئيسي
     final curvePath = Path();
     for (int i = 0; i <= samples; i++) {
       final x = startX + (maxX - startX) * (i / samples);
@@ -151,12 +168,10 @@ class DistributionPainter extends CustomPainter {
         ..color = curveColor,
     );
 
-    // 5. رسم المحاور (X-Axis & Y-Axis) مع الأسهم ونقطة الأصل
     final axisPaint = Paint()
       ..strokeWidth = 1.5
       ..color = axisColor;
 
-    // المحور الأفقي (X-Axis) + سهم اليمين
     final rightEndX = size.width - rightPad;
     canvas.drawLine(
       Offset(leftPad, baselineY),
@@ -174,14 +189,13 @@ class DistributionPainter extends CustomPainter {
       axisPaint,
     );
 
-    // تحديد هل نعرض القيم الفعلية للمسألة أم القيم المعيارية (Z/T)
     final bool useActual =
         showActualScale &&
         result.testValue == null &&
-        result.distType != DistributionType.chiSquare;
+        !result.isSampleSizeMode &&
+        !_isPositiveOnly;
 
-    if (result.distType == DistributionType.chiSquare) {
-      // المحور الرأسي (Y-Axis) عند x = 0 لتوزيع Chi-Square + سهم لأعلى
+    if (_isPositiveOnly) {
       canvas.drawLine(
         Offset(leftPad, topPad),
         Offset(leftPad, baselineY),
@@ -198,7 +212,6 @@ class DistributionPainter extends CustomPainter {
         axisPaint,
       );
 
-      // كتابة نقطة الأصل 0 واسم المحور χ²
       _drawAxisLabel(
         canvas,
         '0',
@@ -207,16 +220,18 @@ class DistributionPainter extends CustomPainter {
         size.width,
         isBold: true,
       );
+      final axisSymbol = result.distType == DistributionType.fisherF
+          ? 'F'
+          : 'χ²';
       _drawAxisLabel(
         canvas,
-        'χ²',
+        axisSymbol,
         rightEndX - 4,
         baselineY - 18,
         size.width,
         isBold: true,
       );
     } else {
-      // المحور الرأسي في المنتصف للتوزيعات المتماثلة (Z و T)
       final zeroPx = toPixelX(0);
       canvas.drawLine(
         Offset(zeroPx, topPad + 4),
@@ -239,7 +254,6 @@ class DistributionPainter extends CustomPainter {
       );
     }
 
-    // 6. رسم الخطوط الرأسية للقيم الحرجة وطباعة أرقامها
     void drawCriticalLine(double critVal, {double? boundVal}) {
       if (!critVal.isFinite || critVal < minX || critVal > maxX) return;
       final px = toPixelX(critVal);
@@ -252,7 +266,9 @@ class DistributionPainter extends CustomPainter {
           ..color = AppTheme.rejectTailColor,
       );
 
-      final labelVal = (useActual && boundVal != null) ? boundVal : critVal;
+      final labelVal = (useActual && boundVal != null && boundVal.isFinite)
+          ? boundVal
+          : critVal;
       _drawAxisLabel(
         canvas,
         labelVal.toStringAsFixed(3),
@@ -267,7 +283,6 @@ class DistributionPainter extends CustomPainter {
     drawCriticalLine(result.leftCritical, boundVal: result.lowerBound);
     drawCriticalLine(result.rightCritical, boundVal: result.upperBound);
 
-    // 7. رسم مؤشر قيمة الاختبار المحسوبة (إن وُجدت في شاشة Hypothesis Test)
     if (result.testValue != null && result.testValue!.isFinite) {
       final clampedTest = result.testValue!.clamp(minX, maxX);
       final px = toPixelX(clampedTest);
@@ -285,7 +300,7 @@ class DistributionPainter extends CustomPainter {
       );
       _drawAxisLabel(
         canvas,
-        'Stat=${result.testValue!.toStringAsFixed(2)}',
+        'Val=${result.testValue!.toStringAsFixed(2)}',
         px,
         topPad - 18,
         size.width,

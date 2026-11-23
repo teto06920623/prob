@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import '../mean_ci/mean_ci_screen.dart';
-import '../variance_ci/variance_ci_screen.dart';
-import '../proportion_ci/proportion_ci_screen.dart';
 import '../hypothesis_test/hypothesis_screen.dart';
+import '../mean_ci/mean_ci_screen.dart';
+import '../probability_sampling/probability_sampling_screen.dart';
+import '../proportion_ci/proportion_ci_screen.dart';
+import '../tables_explorer/stat_tables_sheet.dart';
+import '../variance_ci/variance_ci_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -19,65 +21,101 @@ class _AppShellState extends State<AppShell> {
     VarianceCiScreen(),
     ProportionCiScreen(),
     HypothesisScreen(),
+    ProbabilitySamplingScreen(),
   ];
 
-  final List<NavigationDestination> _destinations = const [
-    NavigationDestination(icon: Icon(Icons.functions), label: 'Mean (μ)'),
-    NavigationDestination(icon: Icon(Icons.ssid_chart), label: 'Variance (σ²)'),
-    NavigationDestination(
-      icon: Icon(Icons.pie_chart_outline),
-      label: 'Proportion (P)',
-    ),
-    NavigationDestination(icon: Icon(Icons.rule), label: 'Hypothesis'),
-  ];
+  void _openTablesExplorer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const StatTablesSheet(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 720;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 820;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('HUE Statistics & CI Visualizer'),
-            centerTitle: !isDesktop,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('HUE Statistics & CI Visualizer'),
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.tonalIcon(
+              onPressed: _openTablesExplorer,
+              icon: const Icon(Icons.table_chart_outlined, size: 18),
+              label: const Text('Tables'),
+            ),
           ),
-          body: Row(
-            children: [
-              if (isDesktop)
-                NavigationRail(
-                  selectedIndex: _selectedIndex,
-                  extended: constraints.maxWidth >= 1050,
-                  onDestinationSelected: (idx) =>
-                      setState(() => _selectedIndex = idx),
-                  destinations: _destinations
-                      .map(
-                        (d) => NavigationRailDestination(
-                          icon: d.icon,
-                          label: Text(d.label),
-                        ),
-                      )
-                      .toList(),
+        ],
+      ),
+      body: Row(
+        children: [
+          if (isDesktop)
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+              labelType: NavigationRailLabelType.all,
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.functions),
+                  label: Text('Mean (μ)'),
                 ),
-              if (isDesktop) const VerticalDivider(width: 1),
-              Expanded(child: _screens[_selectedIndex]),
-            ],
-          ),
-          bottomNavigationBar: isDesktop
-              ? null
-              : NavigationBar(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: (idx) =>
-                      setState(() => _selectedIndex = idx),
-                  destinations: _destinations,
+                NavigationRailDestination(
+                  icon: Icon(Icons.show_chart),
+                  label: Text('Variance (σ²)'),
                 ),
-        );
-      },
+                NavigationRailDestination(
+                  icon: Icon(Icons.pie_chart_outline),
+                  label: Text('Proportion (P)'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.rule),
+                  label: Text('Hypothesis'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.analytics_outlined),
+                  label: Text('Prob & F'),
+                ),
+              ],
+            ),
+          if (isDesktop) const VerticalDivider(width: 1),
+          Expanded(child: _screens[_selectedIndex]),
+        ],
+      ),
+      bottomNavigationBar: isDesktop
+          ? null
+          : NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.functions),
+                  label: 'Mean',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.show_chart),
+                  label: 'Variance',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.pie_chart_outline),
+                  label: 'Prop',
+                ),
+                NavigationDestination(icon: Icon(Icons.rule), label: 'Hypo'),
+                NavigationDestination(
+                  icon: Icon(Icons.analytics_outlined),
+                  label: 'Prob/F',
+                ),
+              ],
+            ),
     );
   }
 }
 
-/// Widget موحد لتوزيع المدخلات والنتائج حسب حجم الشاشة (موبايل vs ديسكتوب/متصفح)
 class ResponsiveCalcLayout extends StatelessWidget {
   final Widget inputSection;
   final Widget resultAndChartSection;
@@ -90,44 +128,28 @@ class ResponsiveCalcLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 850) {
-          // وضع الويندوز والمتصفح العريض: المدخلات يسار والنتائج والرسمة يمين
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 4,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: inputSection,
-                ),
-              ),
-              Expanded(
-                flex: 6,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: resultAndChartSection,
-                ),
-              ),
-            ],
-          );
-        }
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= 960) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 5, child: inputSection),
+            const SizedBox(width: 20),
+            Expanded(flex: 6, child: resultAndChartSection),
+          ],
+        ),
+      );
+    }
 
-        // وضع الأندرويد والشاشات الضيقة: عناصر رأسية متتالية
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              inputSection,
-              const SizedBox(height: 16),
-              resultAndChartSection,
-            ],
-          ),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        inputSection,
+        const SizedBox(height: 16),
+        resultAndChartSection,
+      ],
     );
   }
 }

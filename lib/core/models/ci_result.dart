@@ -1,10 +1,11 @@
-enum DistributionType { normal, studentT, chiSquare }
+enum DistributionType { normal, studentT, chiSquare, fisherF }
 
 class CiResult {
   final String title;
   final String methodUsed;
   final DistributionType distType;
   final int degreesOfFreedom;
+  final int degreesOfFreedom2;
   final double alpha;
 
   final double pointEstimate;
@@ -16,16 +17,18 @@ class CiResult {
   final double rightCritical;
   final double? testValue;
   final bool isSampleSizeMode;
+  final bool isProbabilityMode;
 
   final String? secondaryLabel;
   final String? secondaryValue;
-  final List<String> steps; // خطوات الحل بالورقة والقلم
+  final List<String> steps;
 
   const CiResult({
     required this.title,
     required this.methodUsed,
     required this.distType,
     this.degreesOfFreedom = 1,
+    this.degreesOfFreedom2 = 1,
     required this.alpha,
     required this.pointEstimate,
     required this.lowerBound,
@@ -35,6 +38,7 @@ class CiResult {
     required this.rightCritical,
     this.testValue,
     this.isSampleSizeMode = false,
+    this.isProbabilityMode = false,
     this.secondaryLabel,
     this.secondaryValue,
     this.steps = const [],
