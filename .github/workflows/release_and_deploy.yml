@@ -67,16 +67,31 @@ jobs:
       - run: flutter pub get
       - run: flutter build windows --release
 
-      - name: Package Windows Release Folder
+      - name: Build Single Windows Installer EXE
         shell: pwsh
         run: |
           $releaseDir = if (Test-Path "build\windows\x64\runner\Release") { "build\windows\x64\runner\Release" } else { "build\windows\runner\Release" }
-          Compress-Archive -Path "$releaseDir\*" -DestinationPath "HUE-Statistics-Windows.zip" -Force
+          @"
+          [Setup]
+          AppName=HUE Statistics & CI Visualizer
+          AppVersion=1.0.0
+          DefaultDirName={autopf}\HUE_Statistics
+          OutputDir=.
+          OutputBaseFilename=HUE-Statistics-Setup
+          Compression=lzma2
+          SolidCompression=yes
+          [Files]
+          Source: "$releaseDir\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+          [Icons]
+          Name: "{autodesktop}\HUE Statistics"; Filename: "{app}\prob.exe"
+          "@ | Out-File -Encoding utf8 installer.iss
+          iscc installer.iss
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
         with:
           name: windows-release
-          path: HUE-Statistics-Windows.zip
+          path: HUE-Statistics-Setup.exe
 
   # ---------------------------------------------------------
   # 3. بناء نسخة الويب وتجهيزها للنشر وللـ Release
@@ -151,12 +166,12 @@ jobs:
           fi
 
       - name: Create Release & Attach Files
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag_step.outputs.TAG }}
-          name: "HUE Statistics & CI Visualizer ${{ steps.tag_step.outputs.TAG }}"
-          generate_release_notes: true
-          files: |
-            artifacts/android-release/HUE-Statistics-Android.apk
-            artifacts/windows-release/HUE-Statistics-Windows.zip
-            artifacts/web-release-zip/HUE-Statistics-Web.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag_step.outputs.TAG }}" \
+            artifacts/android-release/HUE-Statistics-Android.apk \
+            artifacts/windows-release/HUE-Statistics-Setup.exe \
+            artifacts/web-release-zip/HUE-Statistics-Web.zip \
+            --title "HUE Statistics & CI Visualizer ${{ steps.tag_step.outputs.TAG }}" \
+            --generate-notes

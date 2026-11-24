@@ -6,28 +6,34 @@
 
 #include <memory>
 
+#include "native_splash_overlay.h"
 #include "win32_window.h"
 
-// A window that does nothing but host a Flutter view.
-class FlutterWindow : public Win32Window {
- public:
-  // Creates a new FlutterWindow hosting a Flutter view running |project|.
-  explicit FlutterWindow(const flutter::DartProject& project);
+class FlutterWindow : public Win32Window
+{
+public:
+  explicit FlutterWindow(const flutter::DartProject &project);
   virtual ~FlutterWindow();
 
- protected:
-  // Win32Window:
+protected:
   bool OnCreate() override;
   void OnDestroy() override;
   LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
                          LPARAM const lparam) noexcept override;
 
- private:
-  // The project to run.
-  flutter::DartProject project_;
+private:
+  void TryDismissSplash();
+  void ForceDismissSplash();
 
-  // The Flutter instance hosted by this window.
+  flutter::DartProject project_;
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+  std::unique_ptr<NativeSplashOverlay> splash_overlay_;
+
+  bool is_animation_finished_ = false;
+  bool is_flutter_first_frame_ready_ = false;
+  bool is_splash_dismissed_ = false;
+
+  static constexpr UINT_PTR kSafetyTimerId = 2001;
 };
 
-#endif  // RUNNER_FLUTTER_WINDOW_H_
+#endif // RUNNER_FLUTTER_WINDOW_H_

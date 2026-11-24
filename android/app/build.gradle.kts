@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.prop"
+    namespace = "com.example.prob"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

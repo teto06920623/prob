@@ -103,7 +103,7 @@ class _AppShellState extends State<AppShell> {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.pie_chart_outline),
-                  label: 'Prop',
+                  label: 'Prob',
                 ),
                 NavigationDestination(icon: Icon(Icons.rule), label: 'Hypo'),
                 NavigationDestination(

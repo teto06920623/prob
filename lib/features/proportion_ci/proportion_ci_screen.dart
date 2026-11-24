@@ -119,8 +119,9 @@ class _ProportionCiScreenState extends State<ProportionCiScreen> {
         );
       } else {
         pHat = double.parse(_pHatCtrl.text.trim());
-        if (pHat <= 0 || pHat >= 1)
+        if (pHat <= 0 || pHat >= 1) {
           throw Exception('نسبة العينة P̂ يجب أن تكون بين 0 و 1.');
+        }
         steps.add('Given: n = $n, P̂ = $pHat');
       }
 

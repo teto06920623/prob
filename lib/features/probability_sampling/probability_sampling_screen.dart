@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/math/fisher_f_dist.dart';
@@ -159,8 +161,9 @@ class _ProbabilitySamplingScreenState extends State<ProbabilitySamplingScreen> {
         final sigma2 = double.parse(_stdCtrl.text.trim());
         final n = int.parse(_nCtrl.text.trim());
         final a = double.parse(_aCtrl.text.trim());
-        if (n < 2 || sigma2 <= 0 || a < 0)
+        if (n < 2 || sigma2 <= 0 || a < 0) {
           throw Exception('تأكد من صحة القيم المدخلة.');
+        }
 
         final df = n - 1;
         final chiStat = (df * a) / sigma2;
@@ -209,8 +212,9 @@ class _ProbabilitySamplingScreenState extends State<ProbabilitySamplingScreen> {
       if (_category == _ProbCategory.normalDist) {
         center = double.parse(_meanCtrl.text.trim());
         scale = double.parse(_stdCtrl.text.trim());
-        if (scale <= 0)
+        if (scale <= 0) {
           throw Exception('الانحراف المعياري σ يجب أن يكون أكبر من الصفر.');
+        }
         steps.add(
           'Given: X ~ N(μ = $center, σ² = ${(scale * scale).toStringAsFixed(4)})',
         );
@@ -227,8 +231,9 @@ class _ProbabilitySamplingScreenState extends State<ProbabilitySamplingScreen> {
       } else {
         final p = double.parse(_propCtrl.text.trim());
         final n = int.parse(_nCtrl.text.trim());
-        if (p <= 0 || p >= 1 || n < 1)
+        if (p <= 0 || p >= 1 || n < 1) {
           throw Exception('تأكد أن P بين 0 و 1 و n ≥ 1.');
+        }
         final np = n * p;
         final nq = n * (1.0 - p);
         final isValid = np >= 5.0 && nq >= 5.0;
@@ -249,8 +254,9 @@ class _ProbabilitySamplingScreenState extends State<ProbabilitySamplingScreen> {
       if (_normalQuery == _NormalQueryType.inverseLeft ||
           _normalQuery == _NormalQueryType.inverseRight) {
         final targetP = double.parse(_targetProbCtrl.text.trim());
-        if (targetP <= 0 || targetP >= 1)
+        if (targetP <= 0 || targetP >= 1) {
           throw Exception('الاحتمال المطلوب يجب أن يكون بين 0 و 1.');
+        }
         final z = _normalQuery == _NormalQueryType.inverseLeft
             ? NormalDist.criticalZ(1.0 - targetP)
             : NormalDist.criticalZ(targetP);

@@ -1,5 +1,4 @@
-package com.example.prop
-
+package com.example.prob
 import android.graphics.Path
 
 object SvgPathParser {
