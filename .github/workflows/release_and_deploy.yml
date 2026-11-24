@@ -109,9 +109,9 @@ jobs:
 
       - run: flutter pub get
 
-      # يبني التطبيق بمسار /prob/ ليعمل على math.tetomohamad.me/prob/
+      # يبني التطبيق على الجذر / ليعمل مباشرة على math.tetomohamad.me
       - name: Build Flutter Web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: flutter build web --release --base-href "/"
 
       - name: Zip Web Build for Release
         run: |
