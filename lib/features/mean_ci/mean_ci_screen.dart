@@ -110,8 +110,9 @@ class _MeanCiScreenState extends State<MeanCiScreen> {
       if (_inputMode == _MeanInputMode.sampleSize) {
         final sigma = double.parse(_stdCtrl.text.trim());
         final e = double.parse(_errorCtrl.text.trim());
-        if (sigma <= 0 || e <= 0)
+        if (sigma <= 0 || e <= 0) {
           throw Exception('تأكد أن الانحراف المعياري وهامش الخطأ > 0.');
+        }
 
         final zCrit = NormalDist.criticalZ(alphaOverTwo);
         final exactN = math.pow((zCrit * sigma) / e, 2).toDouble();
@@ -180,8 +181,9 @@ class _MeanCiScreenState extends State<MeanCiScreen> {
         if (n < 2) throw Exception('حجم العينة n يجب أن يكون أكبر من 1.');
         xBar = sumX / n;
         final variance = (sumX2 - (sumX * sumX) / n) / (n - 1);
-        if (variance < 0)
+        if (variance < 0) {
           throw Exception('قيم المجاميع غير متناسقة (التباين سالب).');
+        }
         stdDev = math.sqrt(variance);
         steps.add('X̄ = Σx / n = $sumX / $n = ${xBar.toStringAsFixed(4)}');
         steps.add(

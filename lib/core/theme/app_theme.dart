@@ -49,7 +49,7 @@ class AppTheme {
         foregroundColor: base.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
+        surfaceTintColor: const Color(0x00000000),
       ),
       cardTheme: CardThemeData(
         elevation: 0,

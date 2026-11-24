@@ -1,0 +1,162 @@
+name: Build Multi-Platform Release & Deploy Web
+
+on:
+  # يشتغل تلقائياً لما ترفع Tag جديد يبدأ بحرف v (مثل v1.0.0)
+  push:
+    tags:
+      - "v*"
+  # يتيح لك تشغيله يدوياً في أي وقت بضغطة زر من تبويب Actions
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "رقم الإصدار (مثال: v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+# صلاحيات إنشاء الـ Release ونشر موقع GitHub Pages
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  # ---------------------------------------------------------
+  # 1. بناء نسخة الأندرويد (APK)
+  # ---------------------------------------------------------
+  build_android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build apk --release
+
+      - name: Rename APK
+        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/HUE-Statistics-Android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: build/app/outputs/flutter-apk/HUE-Statistics-Android.apk
+
+  # ---------------------------------------------------------
+  # 2. بناء نسخة الويندوز (Windows EXE + DLLs Bundle)
+  # ---------------------------------------------------------
+  build_windows:
+    name: Build Windows Desktop
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build windows --release
+
+      - name: Package Windows Release Folder
+        shell: pwsh
+        run: |
+          $releaseDir = if (Test-Path "build\windows\x64\runner\Release") { "build\windows\x64\runner\Release" } else { "build\windows\runner\Release" }
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath "HUE-Statistics-Windows.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: HUE-Statistics-Windows.zip
+
+  # ---------------------------------------------------------
+  # 3. بناء نسخة الويب وتجهيزها للنشر وللـ Release
+  # ---------------------------------------------------------
+  build_web:
+    name: Build Web App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - run: flutter pub get
+
+      # تمرير اسم الـ Repo في base-href ضروري جداً حتى لا تظهر شاشة بيضاء على GitHub Pages
+      - name: Build Flutter Web
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - name: Zip Web Build for Release
+        run: |
+          cd build/web
+          zip -r ../../HUE-Statistics-Web.zip .
+
+      - name: Upload Web Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-release-zip
+          path: HUE-Statistics-Web.zip
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  # ---------------------------------------------------------
+  # 4. نشر نسخة الويب أونلاين والحصول على الرابط المباشر
+  # ---------------------------------------------------------
+  deploy_pages:
+    name: Deploy to GitHub Pages
+    needs: build_web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ---------------------------------------------------------
+  # 5. تجميع الـ 3 نسخ في GitHub Release واحد
+  # ---------------------------------------------------------
+  create_release:
+    name: Publish GitHub Release
+    needs: [build_android, build_windows, build_web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Determine Release Tag
+        id: tag_step
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${{ github.event.inputs.release_version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release & Attach Files
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_step.outputs.TAG }}
+          name: "HUE Statistics & CI Visualizer ${{ steps.tag_step.outputs.TAG }}"
+          generate_release_notes: true
+          files: |
+            artifacts/android-release/HUE-Statistics-Android.apk
+            artifacts/windows-release/HUE-Statistics-Windows.zip
+            artifacts/web-release-zip/HUE-Statistics-Web.zip
