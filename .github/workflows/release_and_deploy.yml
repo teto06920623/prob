@@ -51,7 +51,7 @@ jobs:
           path: build/app/outputs/flutter-apk/HUE-Statistics-Android.apk
 
   # ---------------------------------------------------------
-  # 2. بناء نسخة الويندوز (Windows EXE + DLLs Bundle)
+  # 2. بناء نسخة الويندوز (Single Installer EXE)
   # ---------------------------------------------------------
   build_windows:
     name: Build Windows Desktop
@@ -109,7 +109,7 @@ jobs:
 
       - run: flutter pub get
 
-      # تمرير اسم الـ Repo في base-href ضروري جداً حتى لا تظهر شاشة بيضاء على GitHub Pages
+      # يبني التطبيق بمسار /prob/ ليعمل على math.tetomohamad.me/prob/
       - name: Build Flutter Web
         run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
@@ -145,7 +145,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   # ---------------------------------------------------------
-  # 5. تجميع الـ 3 نسخ في GitHub Release واحد
+  # 5. تجميع الـ 3 نسخ في GitHub Release واحد (باستخدام gh الرسمي)
   # ---------------------------------------------------------
   create_release:
     name: Publish GitHub Release
