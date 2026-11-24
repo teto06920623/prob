@@ -152,6 +152,10 @@ jobs:
     needs: [build_android, build_windows, build_web]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
